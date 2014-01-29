@@ -15,4 +15,5 @@ void free_img(img_t *img);
 img_t *ld_img_img(const char *name);
 void mk_img_img(img_t *img, const char *name);
 inline int wrap(register int x, register int side);
+int chk_pt(img_t *img, int x, int y);
 void gen_maze(img_t *img,int x, int y, int *count);

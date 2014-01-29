@@ -22,21 +22,22 @@ enum {
 
 int main(int argc, char **argv){
 	img_t *img;
-	int count=0;
+//	int count=0;
 	srand(time(NULL));
-	img = new_img(atoi(argv[1]), atoi(argv[2]));
-	gen_maze(img,3,3, &count);
-	mk_img_img(img,"output.png");
+	img = new_img(2*atoi(argv[1])+1, 2*atoi(argv[2])+1);
+	gen_maze(img,3,3, NULL);
+	mk_img_img(img,argv[3]);
+	return 0;
 } 
 
 void gen_maze(img_t *img,int x, int y, int *count){
 	int dir;
 	int cn=0;
-	char name[80];
+//	char name[80];
 	img->matrix[x][y] = PATH;
-	sprintf(name,"%06d.png",*count);
-	mk_img_img(img,name);
-	(*count)++;
+//	sprintf(name,"%06d.png",*count);
+//	mk_img_img(img,name);
+//	(*count)++;
 	//printf("(%d,%d)\n",x,y);
 	while(cn<1000){
 		dir = rand()%4;
@@ -112,7 +113,7 @@ int chk_pt(img_t *img, int x, int y){
  */
 img_t *ld_img_img(const char *name){
 	int w,h;
-	int side;
+//	int side;
 	int i,j;
 	Imlib_Color col;
 
@@ -208,8 +209,8 @@ inline int get_val(img_t *img, int x, int y){
 	w = img->width;
 	h = img->height;
 	
-	x = wrap(x,w);
-	y = wrap(y,h);
+//	x = wrap(x,w);
+//	y = wrap(y,h);
 
 	if(x < 0) return PATH;
 	if(x >= w) return PATH;
@@ -271,8 +272,8 @@ img_t *new_img(int w, int h){
 	int i;
 	img_t *newimg;
 	newimg = calloc(1,sizeof(img_t));
-	newimg->matrix = calloc(w,sizeof(img_t*));
-	for(i=0;i<h;i++){
+	newimg->matrix = calloc(w,sizeof(int*));
+	for(i=0;i<w;i++){
 		newimg->matrix[i] = calloc(h,sizeof(int));
 	}
 	newimg->width = w;
