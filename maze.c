@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <Imlib2.h>
+#include <sys/resource.h>
 
 
 #define MIN(X,Y)	((X < Y) ? (X) : (Y))
@@ -23,6 +24,29 @@ enum {
 int main(int argc, char **argv){
 	img_t *img;
 //	int count=0;
+	
+	if(argc < 5){
+		fprintf(stderr, "Usage: maze <m> <n> <output> <stack size (MB)>\n");
+	}
+
+	const rlim_t kStackSize = atoi(argv[4]) * 1024 * 1024;   // min stack size = 16 MB
+    	struct rlimit rl;
+        int result;
+
+	result = getrlimit(RLIMIT_STACK, &rl);
+	if (result == 0)
+	{
+	        if (rl.rlim_cur < kStackSize)
+	        {
+	                rl.rlim_cur = kStackSize;
+		        result = setrlimit(RLIMIT_STACK, &rl);
+		        if (result != 0)
+		        {
+		                   fprintf(stderr, "setrlimit returned result = %d\n", result);
+		        }
+		}
+	}
+	
 	srand(time(NULL));
 	img = new_img(2*atoi(argv[1])+1, 2*atoi(argv[2])+1);
 	gen_maze(img,3,3, NULL);
@@ -168,12 +192,13 @@ void mk_img_img(img_t *img,const char *name){
 			if(i==0 && j==1){
 				imlib_context_set_color(0,255,0,255);
 				imlib_image_draw_pixel(i,j,0);
-			}else if(i==w-1 && j = h-2){
+			}else if(i==w-1 && j == h-2){
 				imlib_context_set_color(255,0,0,255);
 				imlib_image_draw_pixel(i,j,0);
+			}else{
+				imlib_context_set_color(val,val,val,255);
+				imlib_image_draw_pixel(i,j,0);
 			}
-			imlib_context_set_color(val,val,val,255);
-			imlib_image_draw_pixel(i,j,0);	
 		}
 	}
 	
