@@ -165,6 +165,13 @@ void mk_img_img(img_t *img,const char *name){
 	for(i=0; i < w; i++){
 		for(j=0; j < h; j++){
 			val = mat[i][j];
+			if(i==0 && j==1){
+				imlib_context_set_color(0,255,0,255);
+				imlib_image_draw_pixel(i,j,0);
+			}else if(i==w-1 && j = h-2){
+				imlib_context_set_color(255,0,0,255);
+				imlib_image_draw_pixel(i,j,0);
+			}
 			imlib_context_set_color(val,val,val,255);
 			imlib_image_draw_pixel(i,j,0);	
 		}
