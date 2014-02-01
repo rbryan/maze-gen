@@ -41,3 +41,4 @@ int is_dir(int p,int d);
 int pop_dir(int *paths);
 int count_dir(int paths);
 void print_graph(graph_t *graph);
+void print_dir(int paths);

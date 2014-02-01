@@ -56,6 +56,7 @@ int main(int argc, char **argv){
 		img_t *img;
 		graph_t *graph;
 
+
 		img = ld_img_img("test.png");
 		mk_img_img(img,"output.png");
 		graph = get_graph(img);
@@ -95,13 +96,16 @@ graph_t *get_graph(img_t *img){
 
 	w = img->width;
 	h = img->height;
-
 	newgraph = new_graph(img);
 
 	sx = newgraph->sx;
 	sy = newgraph->sy;
-
+	
+		printf("%d %d\n",sx,sy);
+		fflush(stdout);
 	if(sx==0){
+		printf("%d %d\n",sx,sy);
+		fflush(stdout);
 		gg_r(img,newgraph,sx,sy,0,WEST);
 	}else if(sy==0){
 		gg_r(img,newgraph,sx,sy,0,SOUTH);
@@ -133,7 +137,7 @@ void print_graph(graph_t *graph){
 	printf("End:\t(%d,%d)\n",ex,ey);
 
 	for(i=0; i<size; i++){
-		printf("%d = %d %d %d %d", i+1, graph->nodes[i][N1], graph->nodes[i][N2], graph->nodes[i][N3], graph->nodes[i][N4]);
+		printf("%d = %d %d %d %d\n", i+1, graph->nodes[i][N1], graph->nodes[i][N2], graph->nodes[i][N3], graph->nodes[i][N4]);
 	}
 
 }
@@ -149,7 +153,11 @@ int gg_r(	img_t *img,
 	int size;
 	int dir;
 	int cons = 0;
+	int bx,by;
 
+
+	printf("New Node: (%d,%d) dirs: %d\n",x,y,dirs);
+	print_dir(dirs);
 	size = graph->size;
 	
 	graph->nodes[size][CX] = graph->ex;
@@ -160,15 +168,26 @@ int gg_r(	img_t *img,
 		graph->size++;
 		return 0;
 	}
+	if(x==graph->sx && y==graph->sy){
+		graph->nodes[size][START] = 1;
+		graph->size++;
+		return 0;
+	}
 	graph->size++;
-
 	while(dirs){
+		bx = x;
+		by = y;
 		dir = pop_dir(&dirs);	
 		while(1){
-			mv_dir(&x,&y,dir);
-			set_dirs(img,&paths,x,y);
+			mv_dir(&bx,&by,dir);
+			set_dirs(img,&paths,bx,by);
+			printf("paths: (%d,%d) %d\n",bx,by,count_dir(paths));
+			if(bx==graph->ex && by == graph->ey){
+				graph->nodes[size-1][cons] = gg_r(img,graph,bx,by,depth+1,paths);
+				cons++;
+			}
 			if(count_dir(paths)==0){
-			       	fprintf(stderr,"WTF: zero paths: (%d,%d)\n",x,y);
+			       	fprintf(stderr,"WTF: zero paths: (%d,%d)\n",bx,by);
 				break;
 			}
 			if(count_dir(paths)==1){
@@ -189,10 +208,8 @@ int gg_r(	img_t *img,
 						break;
 				}
 			}else{
-				if(is_dir(paths,NORTH)){
-					graph->nodes[size-1][cons] = gg_r(img,graph,x,y,depth+1,paths);
+					graph->nodes[size-1][cons] = gg_r(img,graph,bx,by,depth+1,paths);
 					cons++;
-				}
 			}
 		}
 	}
@@ -200,7 +217,21 @@ int gg_r(	img_t *img,
 	return 0;
 
 }
-
+void print_dir(int paths){
+	if(is_dir(paths,NORTH)){
+		printf("NORTH\n");
+	}
+	if(is_dir(paths,SOUTH)){
+		printf("SOUTH\n");
+	}
+	if(is_dir(paths,EAST)){
+		printf("EAST\n");
+	}
+	if(is_dir(paths,WEST)){
+		printf("WEST\n");
+	}
+	
+}
 int pop_dir(int *paths){
 	if(is_dir(*paths,NORTH)){
        		*paths = (*paths)^NORTH;
@@ -222,7 +253,8 @@ int pop_dir(int *paths){
 }
 
 int is_dir(int p,int d){
-	if(!((p^d)==p)) return 1;
+//	printf("is_dir %d %d %d\n",p,d,p&d);
+	if((p&d)==d) return 1;
 	return 0;
 }
 
@@ -232,6 +264,7 @@ int count_dir(int paths){
 	if(is_dir(paths,SOUTH)) count++;
 	if(is_dir(paths,EAST)) count++;
 	if(is_dir(paths,WEST)) count++;
+	printf("count: %d\n",count);
 	return count;
 }
 
