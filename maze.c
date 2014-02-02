@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <Imlib2.h>
+#include <pthread.h>
 #include <sys/resource.h>
 
 
@@ -18,20 +19,7 @@
 
 #define PATH	255
 #define WALL	0
-
-#define N1	0
-#define N2	1
-#define N3	2
-#define N4	3
-#define CX	4
-#define CY	5
-#define ND	6
-#define START	7
-#define END	8
-#define USED	9
-
-#define NODE_SIZE	10
-
+#define MARKED  128
 
 
 int main(int argc, char **argv){
@@ -44,6 +32,7 @@ int main(int argc, char **argv){
 	if(*argv[1] == 'g'){
 		if(argc < 6){
 			fprintf(stderr, "Usage: maze g <mode> <m> <n> <output> <stack size (MB)>\n");
+			exit(1);
 		}
 		set_stack_size(atoi(argv[5]));	
 	
@@ -53,14 +42,38 @@ int main(int argc, char **argv){
 		mk_img_img(img,argv[4]);
 		return 0;
 	}else if(*argv[1] == 's'){
-		img_t *img;
-		graph_t *graph;
+		if(argc < 4){
+			fprintf(stderr,"Usage: maze s <img> <output>\n");
+			exit(1);
+		}
+		img_t *img,*trimg;
+		int cx=0,cy=0;
+		tdata data;
+		pthread_t trim_thread;
+		pthread_t solve_thread;
+		pthread_mutex_t lock;
 
+		pthread_mutex_init(&lock,NULL);
 
-		img = ld_img_img("test.png");
-		mk_img_img(img,"output.png");
-		graph = get_graph(img);
-		print_graph(graph);
+		
+		img = ld_img_img(argv[2]);
+		cp_img(&trimg,img);
+		
+		data.cx = &cx;
+		data.cy = &cy;
+		data.real = img;
+		data.trimmed = trimg;
+		data.lock = &lock;
+
+		pthread_create(&trim_thread,NULL,trim,&data);
+		pthread_create(&solve_thread,NULL,lhsolve,&data);
+		
+		//pthread_detach(trim_thread);
+		pthread_join(trim_thread,NULL);
+		mk_img_img(trimg,"trimmed.png");
+		pthread_join(solve_thread,NULL);
+		mk_img_img(img,argv[3]);
+		mk_img_img(trimg,"trimmed.png");
 
 	}else{
 		fprintf(stderr,"Usage: maze <mode> {s: <img> } {g: <m> <n> <output> <stack size (MB)}");
@@ -89,134 +102,233 @@ void set_stack_size(int mb){
 	}
 }
 
-graph_t *get_graph(img_t *img){
+
+void cp_img(img_t **dest, img_t *src){
 	int w,h;
-	int sx,sy;
-	graph_t *newgraph;
-
-	w = img->width;
-	h = img->height;
-	newgraph = new_graph(img);
-
-	sx = newgraph->sx;
-	sy = newgraph->sy;
+	int i,j;
 	
-		printf("%d %d\n",sx,sy);
-		fflush(stdout);
-	if(sx==0){
-		printf("%d %d\n",sx,sy);
-		fflush(stdout);
-		gg_r(img,newgraph,sx,sy,0,WEST);
-	}else if(sy==0){
-		gg_r(img,newgraph,sx,sy,0,SOUTH);
-	}else if(sx==(w-1)){
-		gg_r(img,newgraph,sx,sy,0,EAST);
-	}else if(sy==(h-1)){
-		gg_r(img,newgraph,sx,sy,0,NORTH);
-	}else{
-		fprintf(stderr,"Start point is not on the edge of the maze...\n");
-		return NULL;
-	}	
-	return newgraph;	
-}
+	w = src->width;
+	h = src->height;
 
-void print_graph(graph_t *graph){
-	int i;
-	int sx, sy;
-	int ex, ey;
-	int size;
+	*dest = new_img(w,h);
 
-	sx = graph->sx;
-	sy = graph->sy;
-	ex = graph->ex;
-	ey = graph->ey;
-	size = graph->size;
-	
-	printf("Size:\t%d\n",size);
-	printf("Start:\t(%d,%d)\n",sx,sy);
-	printf("End:\t(%d,%d)\n",ex,ey);
-
-	for(i=0; i<size; i++){
-		printf("%d = %d %d %d %d\n", i+1, graph->nodes[i][N1], graph->nodes[i][N2], graph->nodes[i][N3], graph->nodes[i][N4]);
-	}
-
-}
+	(*dest)->width = w;
+	(*dest)->height = h;
+	(*dest)->sx = src->sx;
+	(*dest)->sy = src->sy;
+	(*dest)->ex = src->ex;
+	(*dest)->ey = src->ey;
 
 
-int gg_r(	img_t *img,
-	       	graph_t *graph,
-	       	int x, int y,
-	       	int depth,
-		int dirs){
-
-	int paths;
-	int size;
-	int dir;
-	int cons = 0;
-	int bx,by;
-
-
-	printf("New Node: (%d,%d) dirs: %d\n",x,y,dirs);
-	print_dir(dirs);
-	size = graph->size;
-	
-	graph->nodes[size][CX] = graph->ex;
-	graph->nodes[size][CY] = graph->ey;
-	graph->nodes[size][ND] = depth;
-	if(x==graph->ex && y==graph->ey){
-		graph->nodes[size][END] = 1;
-		graph->size++;
-		return 0;
-	}
-	if(x==graph->sx && y==graph->sy){
-		graph->nodes[size][START] = 1;
-		graph->size++;
-		return 0;
-	}
-	graph->size++;
-	while(dirs){
-		bx = x;
-		by = y;
-		dir = pop_dir(&dirs);	
-		while(1){
-			mv_dir(&bx,&by,dir);
-			set_dirs(img,&paths,bx,by);
-			printf("paths: (%d,%d) %d\n",bx,by,count_dir(paths));
-			if(bx==graph->ex && by == graph->ey){
-				graph->nodes[size-1][cons] = gg_r(img,graph,bx,by,depth+1,paths);
-				cons++;
-			}
-			if(count_dir(paths)==0){
-			       	fprintf(stderr,"WTF: zero paths: (%d,%d)\n",bx,by);
-				break;
-			}
-			if(count_dir(paths)==1){
-				switch(paths){
-					case NORTH:
-						dir = NORTH;
-						break;
-					case SOUTH:
-						dir = SOUTH;
-						break;
-					case EAST:
-						dir = EAST;
-						break;
-					case WEST:
-						dir = WEST;
-					default:
-						fprintf(stderr,"Direction Failure...\n");
-						break;
-				}
-			}else{
-					graph->nodes[size-1][cons] = gg_r(img,graph,bx,by,depth+1,paths);
-					cons++;
-			}
+	for(i=0; i < w; i++){
+		for(j=0; j < h; j++){
+			(*dest)->matrix[i][j] = src->matrix[i][j];
 		}
 	}
 
-	return 0;
+}
+
+void * trim(void *data){
+	img_t *real;
+	img_t *trimmed;
+	int ex,ey;
+	int sx,sy;
+	int *cx,*cy;
+	int trim_f;
+	int i,j;
+	int w,h;
+	int **tmat;
+	int dirs;
+	pthread_mutex_t *lock;
+	struct timespec start,end;
+
+	real = ((tdata *) data)->real;
+	trimmed = ((tdata *) data)->trimmed;
+	cx = ((tdata *) data)->cx;
+	cy = ((tdata *) data)->cy;
+	lock = ((tdata *) data)->lock;
+
+	tmat = trimmed->matrix;
+
+	ex = real->ex;
+	ey = real->ey;
+
+	sx = real->sx;
+	sy = real->sy;
+
+	w = real->width;
+	h = real->height;
+
+	trim_f=1;
+
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&start);
+
+	while(trim_f){
+		trim_f=0;
+		for(i=1; i<w; i+=2){
+			for(j=1; j<h; j+=2){
+				dirs = get_dirs(trimmed,i,j);
+				if(count_dir(dirs)==1){
+					pthread_mutex_lock(lock);
+					if(	(i != ex || j != ey) &&
+					       	(i != *cx || j != *cy) &&
+					       	(i != sx || j != sy)){
+						fill(tmat,i,j,dirs);
+						trim_f++;
+					}
+					pthread_mutex_unlock(lock);
+				}	
+			}
+		}
+	}
+	
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&end);
+	printf("Start Time: %ld:%ld\n",start.tv_sec,start.tv_nsec);
+	printf("End Time: %ld:%ld\n",end.tv_sec,end.tv_nsec);
+	printf("Diff: %ld:%ld\n",end.tv_sec-start.tv_sec,end.tv_nsec-start.tv_nsec);
+
+	return NULL;
+}
+
+
+
+inline void fill(int **mat,int x, int y, int dir){
+
+	mat[x][y] = WALL;
+
+	switch(dir){
+		case NORTH:
+			mat[x][y-1]=WALL;
+			return;
+		case SOUTH:
+			mat[x][y+1]=WALL;
+			return;
+		case EAST:
+			mat[x+1][y]=WALL;
+			return;
+		case WEST:
+			mat[x-1][y]=WALL;
+			return;
+		default:
+			fprintf(stderr,"Direction Failure...\n");
+			exit(2);
+	}
 
 }
+
+
+void * lhsolve(void *data){
+	img_t *real;
+	img_t *trimmed;
+	int ex,ey;
+	int dir;
+	int *cx,*cy;
+	int ds,dr,dl;
+//	pthread_mutex_t *lock;
+
+	dir = 1;
+
+	real = ((tdata *) data)->real;
+	trimmed = ((tdata *) data)->trimmed;
+	cx = ((tdata *) data)->cx;
+	cy = ((tdata *) data)->cy;
+//	lock = ((tdata *) data)->lock;
+
+	ex = real->ex;
+	ey = real->ey;
+
+	*cx = real->sx;
+	*cy = real->sy;
+
+	while(*cx != ex || *cy != ey){
+		ds = look_dir(trimmed,*cx,*cy,dir);
+		dr = look_dir(trimmed,*cx,*cy,turn_right(dir));
+		dl = look_dir(trimmed,*cx,*cy,turn_left(dir));
+
+		if(dl){
+			dir = turn_left(dir);
+		}else if(ds){
+			
+		}else if(dr){
+			dir = turn_right(dir);
+		}else{
+			dir = turn_180(dir);
+		}
+		mv_dir(real,cx,cy,dir);
+	}
+	return NULL;
+}
+
+int seen(img_t *img,int x,int y){
+	if(img->matrix[x][y] == MARKED){
+		return 1;
+	}
+	return 0;
+}
+
+void toggle_seen(img_t *img,int x, int y){
+	if(img->matrix[x][y] == MARKED){
+		img->matrix[x][y] = PATH;
+		return;
+	}
+	if(img->matrix[x][y] == PATH){
+		img->matrix[x][y] = MARKED;
+		return;
+	}
+}
+
+int turn_180(int dir){
+	
+	switch(dir){
+		case NORTH:
+			return SOUTH;
+		case SOUTH:
+			return NORTH;
+		case EAST:
+			return WEST;
+		case WEST:
+			return EAST;
+		default:
+			fprintf(stderr,"Direction Failure...\n");
+			exit(2);
+	}
+
+}
+
+int turn_right(int dir){
+
+	switch(dir){
+		case NORTH:
+			return WEST;
+		case SOUTH:
+			return EAST;
+		case EAST:
+			return NORTH;
+		case WEST:
+			return SOUTH;
+		default:
+			fprintf(stderr,"Direction Failure...\n");
+			exit(2);
+	}
+
+}
+
+int turn_left(int dir){
+	switch(dir){
+		case NORTH:
+			return EAST;
+		case SOUTH:
+			return WEST;
+		case EAST:
+			return SOUTH;
+		case WEST:
+			return NORTH;
+		default:
+			fprintf(stderr,"Direction Failure...\n");
+			exit(2);
+	}
+}
+
 void print_dir(int paths){
 	if(is_dir(paths,NORTH)){
 		printf("NORTH\n");
@@ -232,6 +344,7 @@ void print_dir(int paths){
 	}
 	
 }
+
 int pop_dir(int *paths){
 	if(is_dir(*paths,NORTH)){
        		*paths = (*paths)^NORTH;
@@ -253,7 +366,6 @@ int pop_dir(int *paths){
 }
 
 int is_dir(int p,int d){
-//	printf("is_dir %d %d %d\n",p,d,p&d);
 	if((p&d)==d) return 1;
 	return 0;
 }
@@ -264,120 +376,76 @@ int count_dir(int paths){
 	if(is_dir(paths,SOUTH)) count++;
 	if(is_dir(paths,EAST)) count++;
 	if(is_dir(paths,WEST)) count++;
-	printf("count: %d\n",count);
 	return count;
 }
 
-void set_dirs(img_t *img, int *paths, int x, int y){
-	*paths = 0;
-	if(look_dir(img,x,y,NORTH)) *paths += NORTH;
-	if(look_dir(img,x,y,SOUTH)) *paths += SOUTH;
-	if(look_dir(img,x,y,EAST)) *paths += EAST;
-	if(look_dir(img,x,y,WEST)) *paths += WEST;
+int get_dirs(img_t *img, int x, int y){
+	int paths = 0;
+	if(look_dir(img,x,y,NORTH)) paths = paths|NORTH;
+	if(look_dir(img,x,y,SOUTH)) paths = paths|SOUTH;
+	if(look_dir(img,x,y,EAST)) paths = paths|EAST;
+	if(look_dir(img,x,y,WEST)) paths = paths|WEST;
+	return paths;
 }
 
 int look_dir(img_t *img, int x, int y, int dir){
 	switch(dir){
 		case NORTH:
-			if(img->matrix[x][y-1]==PATH){
+			if(img->matrix[x][y-1]==PATH || img->matrix[x][y-1]==MARKED){
 				return 1;
 			}else{
 				return 0;
 			}
 		case SOUTH:
-			if(img->matrix[x][y+1]==PATH){
+			if(img->matrix[x][y+1]==PATH || img->matrix[x][y+1]==MARKED){
 				return 1;
 			}else{
 				return 0;
 			}	
 		case EAST:
-			if(img->matrix[x+1][y]==PATH){
+			if(img->matrix[x+1][y]==PATH || img->matrix[x+1][y]==MARKED){
 				return 1;
 			}else{
 				return 0;
 			}
 		case WEST:
-			if(img->matrix[x-1][y]==PATH){
+			if(img->matrix[x-1][y]==PATH || img->matrix[x-1][y]==MARKED){
 				return 1;
 			}else{
 				return 0;
 			}
 		default:
 			fprintf(stderr,"Direction Failure...\n");
-			return 0;
+			exit(2);
 	}
 }
 
-void mv_dir(int *x, int *y, int dir){
+void mv_dir(img_t *img, int *x, int *y, int dir){
 	switch(dir){
 		case NORTH:
-			(*y)--;
+			(*y)-=2;
+			toggle_seen(img,*x,*y+1);
 			return;
 		case SOUTH:
-			(*y)++;
+			(*y)+=2;
+			toggle_seen(img,*x,*y-1);
 			return;
 		case EAST:
-			(*x)++;
+			(*x)+=2;
+			toggle_seen(img,*x-1,*y);
 			return;
 		case WEST:
-			(*x)--;
+			(*x)-=2;
+			toggle_seen(img,*x+1,*y);
 			return;
 		default:
 			fprintf(stderr,"Direction Failure...\n");
-			return;;
+			exit(2);
 	}	
 }
 
 
 
-graph_t *new_graph(img_t *img){
-	int **mat;
-	int w,h;
-	int sx,sy;
-	int ex,ey;
-	int i,j;
-	graph_t *newgraph;
-
-	sx = 0;
-	sy = 0;
-	ex = 0;
-	ey = 0;
-
-	w = img->width;
-	h = img->height;
-	mat = img->matrix;
-
-	for(i=0; i < w; i++){
-		for(j=0; j<h; j++){
-			if(mat[i][j] == 100){
-				sx = i;
-				sy = j;
-			}else if(mat[i][j] == 200){
-				ex = i;
-				ey = j;		
-			}
-		}
-	}
-
-	fprintf(stderr,"Start:\t(%d,%d)\nEnd:\t(%d,%d)\n",sx,sy,ex,ey);
-
-	newgraph = calloc(1,sizeof(graph_t));
-	newgraph->nodes = calloc(w*h/4,sizeof(int *));
-	newgraph->soln = calloc(w*h/4,sizeof(int));
-	for(i=0; i<w*h/4; i++){
-		newgraph->nodes[i] = calloc(NODE_SIZE,sizeof(int));
-		
-	}
-
-	newgraph->sx = sx;
-	newgraph->sy = sy;
-	newgraph->ex = ex;
-	newgraph->ey = ey;
-	
-	return newgraph;
-
-	
-}
 
 
 void gen_maze(img_t *img,int x, int y, int *count){
@@ -470,7 +538,7 @@ img_t *ld_img_img(const char *name){
 	img_t *newimg;
 
 	Imlib_Image image;
-
+	printf("Loading Image: %s\n",name);
 	image = imlib_load_image(name);
 	imlib_context_set_image(image);
 
@@ -484,9 +552,13 @@ img_t *ld_img_img(const char *name){
 		for(j=0; j<h; j++){
 			imlib_image_query_pixel(i,j,&col);
 			if(col.green == 255 && col.red == 0 && col.blue==0 ){
-				newimg->matrix[i][j] = 100;
+				newimg->matrix[i][j] = WALL;
+				newimg->sx = i;
+				newimg->sy = j;
 			}else if(col.red==255 && col.green==0 && col.blue==0){
-				newimg->matrix[i][j] = 200;
+				newimg->matrix[i][j] = WALL;
+				newimg->ex = i;
+				newimg->ey = j;
 			}else if(col.red > 128){
 				newimg->matrix[i][j] = PATH;
 			}else if(col.red < 128){
@@ -494,6 +566,31 @@ img_t *ld_img_img(const char *name){
 			}
 		}
 	}
+	if(newimg->sx ==0){
+		newimg->sx = 1;
+	}
+	if(newimg->ex ==0){
+		newimg->ex = 1;
+	}
+	if(newimg->sy == 0){
+		newimg->sy = 1;
+	}
+	if(newimg->ey == 0){
+		newimg->ey = 1;
+	}
+	if(newimg->sx ==newimg->width-1){
+		newimg->sx = newimg->sx-1;
+	}
+	if(newimg->ex ==newimg->width-1){
+		newimg->ex = newimg->ex-1;
+	}
+	if(newimg->sy == newimg->height-1){
+		newimg->sy = newimg->sy-1;
+	}
+	if(newimg->ey == newimg->height-1){
+		newimg->ey = newimg->ey-1;
+	}
+	
 	return newimg;
 
 
@@ -510,11 +607,26 @@ void mk_img_img(img_t *img,const char *name){
 	int w,h;
 	int **mat;
 	int val;
+	int sx,sy;
+	int ex,ey;
+
+	sx = img->sx;
+	sy = img->sy;
+	ex = img->ex;
+	ey = img->ey;
+
 
 	mat = img->matrix;
 
 	w = img->width;
 	h = img->height;
+	
+	if(sx == 0 && sy == 0){
+		sx = 0;
+		sy = 1;
+		ex = w-1;
+		ey = h-2;
+	}
 
 	image = imlib_create_image(w,h);
 
@@ -523,16 +635,16 @@ void mk_img_img(img_t *img,const char *name){
 	for(i=0; i < w; i++){
 		for(j=0; j < h; j++){
 			val = mat[i][j];
-			if(i==0 && j==1){
+			if(i==sx && j==sy){
 				imlib_context_set_color(0,255,0,255);
-				imlib_image_draw_pixel(i,j,0);
-			}else if(i==w-1 && j == h-2){
+			}else if(i==ex && j == ey){
 				imlib_context_set_color(255,0,0,255);
-				imlib_image_draw_pixel(i,j,0);
+			}else if(img->matrix[i][j] == MARKED){
+				imlib_context_set_color(0,0,255,255);		
 			}else{
 				imlib_context_set_color(val,val,val,255);
-				imlib_image_draw_pixel(i,j,0);
 			}
+			imlib_image_draw_pixel(i,j,0);
 		}
 	}
 	

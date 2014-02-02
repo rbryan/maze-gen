@@ -1,18 +1,20 @@
+#include <pthread.h>
+
 struct img_t{
 	int width, height;
 	int **matrix;
+	int sx,sy;
+	int ex,ey;
 };
 typedef struct img_t img_t;
 
-struct graph_t{
-	int sx,sy;
-	int ex,ey;
-	int size;
-	int **nodes;
-	int *soln;
+struct tdata{
+	img_t *real;
+	img_t *trimmed;
+	int *cx,*cy;
+	pthread_mutex_t *lock;
 };
-typedef struct graph_t graph_t;
-
+typedef struct tdata tdata;
 
 img_t *new_img(int w,int h);
 
@@ -27,18 +29,20 @@ inline int wrap(register int x, register int side);
 int chk_pt(img_t *img, int x, int y);
 void gen_maze(img_t *img,int x, int y, int *count);
 void set_stack_size(int mb);
-graph_t *get_graph(img_t *img);
-int gg_r(	img_t *img,
-	       	graph_t *graph,
-	       	int x, int y,
-	       	int depth,
-	       	int dirs);
-graph_t *new_graph(img_t *img);
-void mv_dir(int *x, int *y, int dir);
+void mv_dir(img_t * img,int *x, int *y, int dir);
 int look_dir(img_t *img, int x, int y, int dir);
-void set_dirs(img_t *img, int *paths, int x, int y);
 int is_dir(int p,int d);
 int pop_dir(int *paths);
 int count_dir(int paths);
-void print_graph(graph_t *graph);
 void print_dir(int paths);
+void * solv_maze(void *data);
+void cp_img(img_t **dest, img_t *src);
+int get_dirs(img_t *img, int x, int y);
+void toggle_seen(img_t *img,int x, int y);
+int turn_180(int dir);
+int turn_right(int dir);
+int turn_left(int dir);
+void * lhsolve(void *data);
+int seen(img_t *img,int x,int y);
+inline void fill(int **mat,int x, int y, int dir);
+void * trim(void *data);

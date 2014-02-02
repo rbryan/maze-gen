@@ -1,0 +1,4 @@
+Loading Image: simonMazeDiagonal.png
+Start Time: 0:16714295
+End Time: 0:87079052
+Diff: 0:70364757
