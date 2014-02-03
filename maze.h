@@ -12,6 +12,9 @@ struct tdata{
 	img_t *real;
 	img_t *trimmed;
 	int *cx,*cy;
+	int *cx2,*cy2;
+	int sx,sy;
+	int ex,ey;
 	pthread_mutex_t *lock;
 };
 typedef struct tdata tdata;
