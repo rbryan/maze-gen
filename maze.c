@@ -48,9 +48,11 @@ int main(int argc, char **argv){
 		}
 		img_t *img,*trimg;
 		int cx=0,cy=0;
+		int cx2=0,cy2=0;
 		tdata data;
 		pthread_t trim_thread;
 		pthread_t solve_thread;
+		pthread_t solve_thread1;
 		pthread_mutex_t lock;
 
 		pthread_mutex_init(&lock,NULL);
@@ -61,17 +63,38 @@ int main(int argc, char **argv){
 		
 		data.cx = &cx;
 		data.cy = &cy;
+		data.cx2 = &cx2;
+		data.cy2 = &cy2;
 		data.real = img;
 		data.trimmed = trimg;
 		data.lock = &lock;
+		data.sx = img->sx;
+		data.sy = img->sy;
+		data.ex = img->ex;
+		data.ey = img->ey;
+
 
 		pthread_create(&trim_thread,NULL,trim,&data);
+
+
 		pthread_create(&solve_thread,NULL,lhsolve,&data);
+
+		data.cx = &cx2;
+		data.cy = &cy2;
+		data.cx2 = &cx;
+		data.cy2 = &cy;
+		data.ex = img->sx;
+		data.ey = img->sy;
+		data.sx = img->ex;
+		data.sy = img->ey;
+
+		pthread_create(&solve_thread1,NULL,lhsolve,&data);
 		
 		//pthread_detach(trim_thread);
 		pthread_join(trim_thread,NULL);
 		mk_img_img(trimg,"trimmed.png");
 		pthread_join(solve_thread,NULL);
+		pthread_join(solve_thread1,NULL);
 		mk_img_img(img,argv[3]);
 		mk_img_img(trimg,"trimmed.png");
 
@@ -217,6 +240,7 @@ void * lhsolve(void *data){
 	int ex,ey;
 	int dir;
 	int *cx,*cy;
+	int *cx2,*cy2;
 	int ds,dr,dl;
 //	pthread_mutex_t *lock;
 	struct timespec start,end;
@@ -227,16 +251,19 @@ void * lhsolve(void *data){
 	trimmed = ((tdata *) data)->trimmed;
 	cx = ((tdata *) data)->cx;
 	cy = ((tdata *) data)->cy;
+	cx2 = ((tdata *) data)->cx2;
+	cy2 = ((tdata *) data)->cy2;
+	
 //	lock = ((tdata *) data)->lock;
 
-	ex = real->ex;
-	ey = real->ey;
+	ex = ((tdata *) data)->ex;
+	ey = ((tdata *) data)->ey;
 
 	*cx = real->sx;
 	*cy = real->sy;
 	clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&start);
 
-	while(*cx != ex || *cy != ey){
+	while((*cx != ex || *cy != ey) && (*cx != *cx2 || *cy != *cy2)){
 		ds = look_dir(trimmed,*cx,*cy,dir);
 		dr = look_dir(trimmed,*cx,*cy,turn_right(dir));
 		dl = look_dir(trimmed,*cx,*cy,turn_left(dir));
