@@ -1,4 +1,4 @@
 Loading Image: demo-maze.png
-Start Time: 0:17685516
-End Time: 0:463421562
-Diff: 0:445736046
+Start Time: 0:6399926
+End Time: 0:6917304
+Diff: 0:517378

@@ -140,7 +140,6 @@ void * trim(void *data){
 	int **tmat;
 	int dirs;
 	pthread_mutex_t *lock;
-	struct timespec start,end;
 
 	real = ((tdata *) data)->real;
 	trimmed = ((tdata *) data)->trimmed;
@@ -161,7 +160,6 @@ void * trim(void *data){
 
 	trim_f=1;
 
-	clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&start);
 
 	while(trim_f){
 		trim_f=0;
@@ -182,10 +180,6 @@ void * trim(void *data){
 		}
 	}
 	
-	clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&end);
-	printf("Start Time: %ld:%ld\n",start.tv_sec,start.tv_nsec);
-	printf("End Time: %ld:%ld\n",end.tv_sec,end.tv_nsec);
-	printf("Diff: %ld:%ld\n",end.tv_sec-start.tv_sec,end.tv_nsec-start.tv_nsec);
 
 	return NULL;
 }
@@ -225,6 +219,7 @@ void * lhsolve(void *data){
 	int *cx,*cy;
 	int ds,dr,dl;
 //	pthread_mutex_t *lock;
+	struct timespec start,end;
 
 	dir = 1;
 
@@ -239,6 +234,7 @@ void * lhsolve(void *data){
 
 	*cx = real->sx;
 	*cy = real->sy;
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&start);
 
 	while(*cx != ex || *cy != ey){
 		ds = look_dir(trimmed,*cx,*cy,dir);
@@ -256,6 +252,10 @@ void * lhsolve(void *data){
 		}
 		mv_dir(real,cx,cy,dir);
 	}
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&end);
+	printf("Start Time: %ld:%ld\n",start.tv_sec,start.tv_nsec);
+	printf("End Time: %ld:%ld\n",end.tv_sec,end.tv_nsec);
+	printf("Diff: %ld:%ld\n",end.tv_sec-start.tv_sec,end.tv_nsec-start.tv_nsec);
 	return NULL;
 }
 

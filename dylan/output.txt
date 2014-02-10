@@ -1,4 +1,4 @@
 Loading Image: Maze.png
-Start Time: 0:14422491
-End Time: 0:101016546
-Diff: 0:86594055
+Start Time: 0:5970419
+End Time: 0:6100747
+Diff: 0:130328
